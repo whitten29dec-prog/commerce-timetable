@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timetable Generator - Dept of Commerce</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Segoe UI',Arial,sans-serif; background:#f0f4f8; color:#222; font-size:13px; }
+header { background:#1a3c6e; color:white; text-align:center; padding:14px 10px 10px; }
+header h1 { font-size:14px; font-weight:700; }
+header p  { font-size:11px; margin-top:3px; opacity:0.85; }
+
+/* TABS */
+.tabs { display:flex; background:#15336b; overflow-x:auto; }
+.tab { flex:0 0 auto; padding:9px 10px; text-align:center; color:#aac4f0; cursor:pointer; font-size:11px; border-bottom:3px solid transparent; white-space:nowrap; }
+.tab.active { color:white; border-bottom:3px solid #f0c040; background:#1a3c6e; }
+.panel { display:none; padding:12px; }
+.panel.active { display:block; }
+
+/* CARDS */
+.card { background:white; border-radius:8px; margin-bottom:10px; box-shadow:0 1px 4px rgba(0,0,0,0.1); overflow:hidden; }
+.card-hdr { color:white; padding:9px 14px; font-weight:600; font-size:13px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+.card-hdr.green  { background:#276749; }
+.card-hdr.navy   { background:#1a3c6e; }
+.card-hdr.blue   { background:#2c5282; }
+.card-hdr.purple { background:#553c9a; }
+.card-body { padding:10px 14px; }
+
+/* EDITABLE HEADING */
+.edit-heading-row { display:grid; grid-template-columns:90px 1fr; gap:8px; margin-bottom:8px; align-items:center; }
+.edit-heading-row label { font-size:11px; color:#666; font-weight:600; }
+.edit-heading-row input { padding:6px 8px; border:1px solid #ccd; border-radius:5px; font-size:12px; width:100%; }
+
+/* NAME ROWS */
+.name-row { display:grid; grid-template-columns:44px 1fr 1fr; gap:7px; margin-bottom:7px; align-items:center; }
+.name-row label { font-size:12px; font-weight:700; color:#276749; }
+.name-row input { padding:5px 7px; border:1px solid #ccd; border-radius:5px; font-size:11px; width:100%; }
+
+/* SUBJECT ROWS */
+.subject-row { display:grid; grid-template-columns:1fr 120px 46px 30px 26px; gap:5px; margin-bottom:6px; align-items:center; }
+.subject-row input, .subject-row select { padding:5px 5px; border:1px solid #ccd; border-radius:5px; font-size:11px; width:100%; }
+.cls-combo { padding:5px 5px; border:1px solid #ccd; border-radius:5px; font-size:11px; width:100%; background:white; }
+.col-label { font-size:10px; color:#888; margin-bottom:3px; display:grid; grid-template-columns:1fr 120px 46px 30px 26px; gap:5px; }
+.hours-badge { font-size:11px; background:#e2f0ff; color:#1a3c6e; padding:2px 8px; border-radius:10px; }
+
+/* BUTTONS */
+.btn { border:none; border-radius:6px; cursor:pointer; font-weight:600; }
+.btn-green  { background:#276749; color:white; }
+.btn-navy   { background:#1a3c6e; color:white; }
+.btn-blue   { background:#2b6cb0; color:white; }
+.btn-red    { background:#e53e3e; color:white; }
+.btn-gray   { background:#555; color:white; }
+.btn-pdf    { background:#c0392b; color:white; }
+.btn-word   { background:#2b6cb0; color:white; }
+.btn-sm  { padding:5px 10px; font-size:11px; }
+.btn-md  { padding:7px 14px; font-size:12px; }
+.btn-lg  { width:100%; padding:12px; font-size:14px; margin-top:8px; }
+.btn-icon { width:26px; height:26px; font-size:14px; display:flex; align-items:center; justify-content:center; padding:0; }
+.btn-add { background:#2b6cb0; color:white; border:none; border-radius:5px; padding:5px 12px; font-size:11px; cursor:pointer; margin-top:4px; }
+.btn-add-staff { background:#276749; color:white; border:none; border-radius:6px; padding:8px 14px; font-size:12px; font-weight:700; cursor:pointer; width:100%; margin-bottom:10px; }
+.save-bar { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+.btn-save { background:#d97706; color:white; border:none; border-radius:6px; padding:9px; font-size:12px; font-weight:700; cursor:pointer; width:100%; }
+.btn-load { background:#7c3aed; color:white; border:none; border-radius:6px; padding:9px; font-size:12px; font-weight:700; cursor:pointer; width:100%; }
+.save-status { font-size:11px; color:#276749; text-align:center; margin-bottom:6px; display:none; font-weight:600; }
+.btn-save-row { background:#276749; color:white; border:none; border-radius:4px; width:30px; height:26px; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+.btn-del-staff { background:#e53e3e; color:white; border:none; border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; margin-left:6px; }
+.staff-hdr-row { display:flex; align-items:center; justify-content:space-between; width:100%; }
+
+/* FIXED SLOTS */
+.fixed-info { background:#fff8e1; border-left:4px solid #f0c040; padding:8px 12px; border-radius:4px; font-size:11px; margin-bottom:10px; color:#7a5c00; }
+table.fixed-grid { border-collapse:collapse; width:100%; min-width:300px; }
+table.fixed-grid th { background:#2c5282; color:white; padding:6px 4px; font-size:10px; text-align:center; border:1px solid #2a4a7f; }
+table.fixed-grid td { border:1px solid #ccd; padding:3px; text-align:center; }
+table.fixed-grid td.day-lbl { background:#e8eef8; font-weight:600; font-size:10px; color:#1a3c6e; width:30px; }
+.slot-sel { padding:2px; border:1px solid #ccd; border-radius:3px; font-size:10px; width:100%; cursor:pointer; }
+.slot-sel.tam-sel { background:#fff3cd; color:#7a5c00; font-weight:700; }
+.slot-sel.eng-sel { background:#d4edda; color:#155724; font-weight:700; }
+.slot-sel.none-sel { background:white; color:#aaa; }
+
+/* INFO BOXES */
+.info-box { background:#e8f0fb; border-left:4px solid #1a3c6e; padding:8px 12px; border-radius:4px; font-size:11px; margin-bottom:10px; color:#1a3c6e; }
+.ok-box   { background:#f0fff4; border-left:4px solid #276749; padding:8px 12px; border-radius:4px; font-size:11px; margin-bottom:10px; color:#276749; display:none; }
+.err-box  { background:#fff5f5; border-left:4px solid #e53e3e; padding:8px 12px; border-radius:4px; font-size:11px; margin-bottom:10px; color:#c53030; display:none; }
+.warn-box { background:#fffbeb; border-left:4px solid #f59e0b; padding:8px 12px; border-radius:4px; font-size:11px; margin-bottom:10px; color:#92400e; display:none; }
+.loading-msg { text-align:center; font-size:11px; color:#666; margin-top:6px; display:none; }
+
+/* DOWNLOAD ROW */
+.dl-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px; margin-top:8px; }
+.dl-btn { border:none; border-radius:7px; padding:10px 4px; font-size:11px; font-weight:700; cursor:pointer; color:white; }
+
+/* TIMETABLE */
+.tt-wrapper { background:white; border-radius:8px; padding:10px; box-shadow:0 1px 4px rgba(0,0,0,0.1); overflow-x:auto; }
+.tt-title { text-align:center; font-size:12px; font-weight:700; margin-bottom:2px; color:#1a3c6e; }
+.tt-subtitle { text-align:center; font-size:10px; color:#555; margin-bottom:8px; }
+table.timetable { width:100%; border-collapse:collapse; font-size:10px; min-width:400px; }
+table.timetable th { background:#1a3c6e; color:white; padding:6px 3px; text-align:center; border:1px solid #15336b; }
+table.timetable td { border:1px solid #ccd; padding:4px 2px; text-align:center; vertical-align:middle; }
+.day-cell   { background:#1a3c6e !important; color:white; font-weight:700; font-size:11px; }
+.class-cell { background:#e8eef8 !important; font-weight:600; color:#1a3c6e; font-size:9px; white-space:nowrap; }
+.tam  { background:#fff3cd !important; color:#7a5c00; font-weight:700; }
+.eng  { background:#d4edda !important; color:#155724; font-weight:700; }
+.staff-cell { font-weight:700; color:#1a3c6e; }
+.empty-cell { color:#ddd; }
+.day-sep td { height:3px; background:#dde8f8; border:none; padding:0; }
+
+/* INDIVIDUAL STAFF TABLE */
+.indiv-staff-select { width:100%; padding:8px; border:1px solid #ccd; border-radius:6px; font-size:13px; margin-bottom:10px; }
+table.indiv-tt { width:100%; border-collapse:collapse; font-size:11px; }
+table.indiv-tt th { background:#553c9a; color:white; padding:7px 5px; text-align:center; border:1px solid #44318a; }
+table.indiv-tt td { border:1px solid #ccd; padding:5px 4px; text-align:center; }
+.indiv-day  { background:#553c9a !important; color:white; font-weight:700; }
+.indiv-tam  { background:#fff3cd !important; color:#7a5c00; font-weight:700; }
+.indiv-eng  { background:#d4edda !important; color:#155724; font-weight:700; }
+.indiv-self { background:#dbeafe !important; color:#1a3c6e; font-weight:700; }
+.indiv-free { color:#ddd; }
+
+/* PERIOD BALANCE */
+.balance-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:8px; }
+.balance-cell { background:#e8f0fb; border-radius:6px; padding:8px 4px; text-align:center; }
+.balance-cell .per-lbl { font-size:10px; color:#666; }
+.balance-cell .per-count { font-size:16px; font-weight:700; color:#1a3c6e; }
+.balance-cell.warn { background:#fff3cd; }
+.balance-cell.ok   { background:#d4edda; }
+
+@media print {
+  body * { visibility:hidden; }
+  .print-area, .print-area * { visibility:visible; }
+  .print-area { position:fixed; top:0; left:0; width:100%; padding:8px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="hdr-college">MANONMANIAM SUNDARANAR UNIVERSITY COLLEGE, TISAIYANVILAI</h1>
+  <p id="hdr-dept">DEPARTMENT OF COMMERCE</p>
+  <p style="font-size:10px;opacity:0.7;margin-top:2px">Timetable Generator v3.0 — All Features Edition</p>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab(0)">📋 Workload</div>
+  <div class="tab" onclick="switchTab(1)">🔒 Fixed Slots</div>
+  <div class="tab" onclick="switchTab(2)">🗓️ Timetable</div>
+  <div class="tab" onclick="switchTab(3)">👤 Individual</div>
+</div>
+
+<!-- ══ TAB 0: WORKLOAD ══ -->
+<div class="panel active" id="tab0">
+  <div class="info-box">
+    ℹ️ <b>v3.0 Features:</b><br>
+    ✅ Edit Headings &nbsp;|&nbsp; ✅ Edit Staff Names &nbsp;|&nbsp; ✅ Add/Edit Subjects<br>
+    ✅ Class: Select OR Type custom &nbsp;|&nbsp; ✅ Fixed TAM/ENG Slots<br>
+    ✅ Period Balance Check &nbsp;|&nbsp; ✅ Individual Staff Timetable<br>
+    ✅ Download PDF &amp; Word (Full + Individual)
+  </div>
+  <div class="save-status" id="save-status"></div>
+  <div class="save-bar">
+    <button class="btn-save" onclick="saveData()">💾 Save Data</button>
+    <button class="btn-load" onclick="loadData()">📂 Load Saved Data</button>
+  </div>
+
+  <!-- Editable Headings -->
+  <div class="card">
+    <div class="card-hdr purple" onclick="toggle('hdr-body')">✏️ Edit Headings <span style="font-size:10px;opacity:0.8">Tap to expand</span></div>
+    <div class="card-body" id="hdr-body" style="display:none">
+      <div class="edit-heading-row"><label>College</label><input id="edit-college" value="MANONMANIAM SUNDARANAR UNIVERSITY COLLEGE, TISAIYANVILAI"></div>
+      <div class="edit-heading-row"><label>Department</label><input id="edit-dept" value="DEPARTMENT OF COMMERCE"></div>
+      <div class="edit-heading-row"><label>Timetable Title</label><input id="edit-tttitle" value="TIME TABLE — ODD SEMESTER 2026–2027"></div>
+      <button class="btn btn-green btn-md" style="width:100%;margin-top:6px" onclick="applyHeadings()">✅ Apply Headings</button>
+    </div>
+  </div>
+
+  <!-- Staff Names -->
+  <div class="card">
+    <div class="card-hdr green" onclick="toggle('name-body')">✏️ Edit Staff Names <span style="font-size:10px;opacity:0.8">Tap to expand</span></div>
+    <div class="card-body" id="name-body" style="display:none">
+      <div style="display:grid;grid-template-columns:44px 1fr 1fr;gap:7px;margin-bottom:5px;">
+        <span style="font-size:10px;color:#888">ID</span>
+        <span style="font-size:10px;color:#888">Short Name</span>
+        <span style="font-size:10px;color:#888">Full Name (opt)</span>
+      </div>
+      <div id="name-rows"></div>
+      <button class="btn btn-green btn-md" style="width:100%;margin-top:4px" onclick="applyNames()">✅ Apply Names</button>
+    </div>
+  </div>
+
+  <!-- Staff Workload Cards -->
+  <div id="staff-list"></div>
+
+  <button class="btn btn-navy btn-lg" onclick="generateTimetable()">⚡ Generate Timetable</button>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+    <button onclick="downloadWorkloadWord()" style="background:#2b6cb0;color:white;border:none;border-radius:8px;padding:11px;font-size:12px;font-weight:700;cursor:pointer;">📝 Workload Word</button>
+    <button onclick="downloadWorkloadPDF()" style="background:#553c9a;color:white;border:none;border-radius:8px;padding:11px;font-size:12px;font-weight:700;cursor:pointer;">📄 Workload PDF</button>
+  </div>
+</div>
+
+<!-- ══ TAB 1: FIXED SLOTS ══ -->
+<div class="panel" id="tab1">
+  <div class="fixed-info">🔒 Set Tamil (TAM) / English (ENG) fixed periods. Scheduler will not touch these.</div>
+  <div id="fixed-editor"></div>
+</div>
+
+<!-- ══ TAB 2: FULL TIMETABLE ══ -->
+<div class="panel" id="tab2">
+  <div class="ok-box"  id="ok-box">✅ Timetable generated with no conflicts!</div>
+  <div class="err-box" id="err-box"></div>
+  <div class="warn-box" id="warn-box"></div>
+
+  <!-- Period Balance -->
+  <div class="card" id="balance-card" style="display:none">
+    <div class="card-hdr blue" onclick="toggle('balance-body')">📊 Period Balance Check <span style="font-size:10px;opacity:0.8">Tap to expand</span></div>
+    <div class="card-body" id="balance-body" style="display:none">
+      <div id="balance-content"></div>
+    </div>
+  </div>
+
+  <div class="tt-wrapper print-area" id="tt-wrapper">
+    <div class="tt-title" id="tt-college-lbl">MANONMANIAM SUNDARANAR UNIVERSITY COLLEGE, TISAIYANVILAI</div>
+    <div class="tt-title" id="tt-dept-lbl">DEPARTMENT OF COMMERCE</div>
+    <div class="tt-subtitle" id="tt-title-lbl">TIME TABLE — ODD SEMESTER 2026–2027</div>
+    <div id="tt-table-container"></div>
+  </div>
+  <button class="btn btn-green btn-lg" onclick="generateTimetable()">🔄 Regenerate</button>
+  <div class="dl-row">
+    <button class="dl-btn" style="background:#555" onclick="window.print()">🖨️ Print</button>
+    <button class="dl-btn" style="background:#c0392b" onclick="downloadPDF()">📄 PDF</button>
+    <button class="dl-btn" style="background:#2b6cb0" onclick="downloadWord()">📝 Word</button>
+  </div>
+  <div class="loading-msg" id="loading-msg"></div>
+</div>
+
+<!-- ══ TAB 3: INDIVIDUAL STAFF ══ -->
+<div class="panel" id="tab3">
+  <div class="info-box">👤 View individual staff timetable. Generate main timetable first.</div>
+  <select class="indiv-staff-select" id="indiv-select" onchange="renderIndividual()">
+    <option value="">-- Select Staff --</option>
+  </select>
+  <div class="tt-wrapper" id="indiv-wrapper" style="display:none">
+    <div class="tt-title" id="indiv-title"></div>
+    <div class="tt-subtitle" id="indiv-subtitle"></div>
+    <div id="indiv-table"></div>
+  </div>
+  <div id="indiv-empty" style="text-align:center;color:#aaa;padding:30px;font-size:13px;">Select a staff member above to view their timetable</div>
+  <div class="dl-row" id="indiv-dl-row" style="display:none">
+    <button class="dl-btn" style="background:#555" onclick="printIndividual()">🖨️ Print</button>
+    <button class="dl-btn" style="background:#c0392b" onclick="downloadIndivPDF()">📄 PDF</button>
+    <button class="dl-btn" style="background:#2b6cb0" onclick="downloadIndivWord()">📝 Word</button>
+  </div>
+  <div class="loading-msg" id="indiv-loading"></div>
+</div>
+
+<script>
+// DOCTYPE helper to prevent browser parsing HTML inside JS strings
+const _DT = '<!DOCTYPE html>';
+const _HO = '<html>';  
+const _HC = '</html>';
+// ══════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════
+const CLASSES      = ['I B.COM','II B.COM','III B.COM','I M.COM','II M.COM'];
+const DAYS         = ['I','II','III','IV','V','VI'];
+const PERIODS      = [1,2,3,4,5];
+const STAFF_IDS    = ['TW','PJ','PY','RM','VI','SP','WS'];
+const FIXED_CLASSES= ['I B.COM','II B.COM'];
+
+let SNAME = {TW:'T.W',PJ:'P.J',PY:'P.Y',RM:'R.M',VI:'V.I',SP:'S.P',WS:'W.S'};
+let SFULL = {TW:'',PJ:'',PY:'',RM:'',VI:'',SP:'',WS:''};
+let HDR = {
+  college: 'MANONMANIAM SUNDARANAR UNIVERSITY COLLEGE, TISAIYANVILAI',
+  dept:    'DEPARTMENT OF COMMERCE',
+  title:   'TIME TABLE \u2014 ODD SEMESTER 2026\u20132027'
+};
+
+let TAM_ENG = {
+  'I B.COM':  { I:{3:'ENG',5:'TAM'}, II:{3:'TAM',5:'ENG'}, III:{1:'ENG',3:'TAM'}, IV:{3:'ENG',5:'TAM'}, V:{3:'TAM',5:'ENG'}, VI:{1:'ENG',5:'TAM'} },
+  'II B.COM': { I:{3:'TAM',5:'ENG'}, II:{1:'ENG',5:'TAM'}, III:{3:'ENG',5:'TAM'}, IV:{1:'ENG',3:'TAM'}, V:{3:'ENG',5:'TAM'}, VI:{3:'TAM',5:'ENG'} }
+};
+
+let lastGrid = null;
+let hoursMap = {};
+
+const defaultWorkload = {
+  TW:[{s:'Project with Viva Voce',c:'III B.COM',h:1},{s:'Company Law',c:'II B.COM',h:4},{s:'Banking & Insurance',c:'I M.COM',h:6},{s:'Taxation',c:'II M.COM',h:2},{s:'International Business',c:'II M.COM',h:5}],
+  PJ:[{s:'Research Methodology',c:'III B.COM',h:4},{s:'Project with Viva Voce',c:'III B.COM',h:1},{s:'Nan Mudhalvan',c:'II B.COM',h:2},{s:'Principles of Management',c:'I B.COM',h:5},{s:'Business Finance',c:'I M.COM',h:6}],
+  PY:[{s:'Project with Viva Voce',c:'III B.COM',h:1},{s:'EVS',c:'II B.COM',h:2},{s:'E-Commerce',c:'II B.COM',h:3},{s:'Digital Marketing',c:'I M.COM',h:6},{s:'Research Methodology',c:'II M.COM',h:6}],
+  RM:[{s:'Income Tax Law & Practice',c:'III B.COM',h:5},{s:'Project with Viva Voce',c:'III B.COM',h:1},{s:'Corporate Accounting',c:'II B.COM',h:5},{s:'Taxation',c:'II M.COM',h:4},{s:'Managerial Excellence',c:'II M.COM',h:3}],
+  VI:[{s:'Cost Accounting',c:'III B.COM',h:5},{s:'Strategic Management',c:'II M.COM',h:2},{s:'Security Analysis',c:'I M.COM',h:4},{s:'Computer Applications',c:'II M.COM',h:5},{s:'MS Office',c:'I B.COM',h:2}],
+  SP:[{s:'Project with Viva Voce',c:'III B.COM',h:1},{s:'Nan Mudhalvan',c:'III B.COM',h:2},{s:'Computer Applications',c:'III B.COM',h:4},{s:'Fundamentals of Business Studies',c:'I B.COM',h:2},{s:'Event Management',c:'I M.COM',h:4},{s:'Business Communication',c:'I B.COM',h:4},{s:'Managerial Excellence',c:'II M.COM',h:1}],
+  WS:[{s:'Banking Law & Practice',c:'III B.COM',h:5},{s:'Computerised Accounting',c:'II B.COM',h:2},{s:'Financial Accounting',c:'I B.COM',h:5},{s:'Import & Export',c:'I M.COM',h:4},{s:'Strategic Management',c:'II M.COM',h:2}]
+};
+
+// ══════════════════════════════════════════
+// HEADINGS
+// ══════════════════════════════════════════
+function applyHeadings(){
+  HDR.college = document.getElementById('edit-college').value.trim() || HDR.college;
+  HDR.dept    = document.getElementById('edit-dept').value.trim()    || HDR.dept;
+  HDR.title   = document.getElementById('edit-tttitle').value.trim() || HDR.title;
+  document.getElementById('hdr-college').textContent   = HDR.college;
+  document.getElementById('hdr-dept').textContent      = HDR.dept;
+  document.getElementById('tt-college-lbl').textContent= HDR.college;
+  document.getElementById('tt-dept-lbl').textContent   = HDR.dept;
+  document.getElementById('tt-title-lbl').textContent  = HDR.title;
+  alert('✅ Headings updated!');
+}
+
+// ══════════════════════════════════════════
+// STAFF NAMES
+// ══════════════════════════════════════════
+function buildNameEditor(){
+  const c=document.getElementById('name-rows'); c.innerHTML='';
+  STAFF_IDS.forEach(sid=>{
+    const r=document.createElement('div'); r.className='name-row';
+    r.innerHTML=`<label>${sid}</label>
+      <input id="sn-${sid}" value="${SNAME[sid]}" placeholder="Short">
+      <input id="sf-${sid}" value="${SFULL[sid]}" placeholder="Full name">`;
+    c.appendChild(r);
+  });
+}
+function applyNames(){
+  STAFF_IDS.forEach(sid=>{
+    const s=document.getElementById(`sn-${sid}`).value.trim();
+    const f=document.getElementById(`sf-${sid}`).value.trim();
+    if(s) SNAME[sid]=s; SFULL[sid]=f;
+    const hdr=document.querySelector(`#card-${sid} .card-hdr span:first-child`);
+    if(hdr) hdr.textContent=`👤 ${SNAME[sid]}${SFULL[sid]?' — '+SFULL[sid]:''}`;
+  });
+  buildIndivSelect();
+  alert('✅ Names updated!');
+}
+
+// ══════════════════════════════════════════
+// WORKLOAD UI
+// ══════════════════════════════════════════
+function buildInputUI(){
+  const c=document.getElementById('staff-list'); c.innerHTML='';
+
+  // Add New Staff button at top
+  const addBtn=document.createElement('button');
+  addBtn.className='btn-add-staff';
+  addBtn.textContent='➕ Add New Staff';
+  addBtn.onclick=addNewStaff;
+  c.appendChild(addBtn);
+
+  STAFF_IDS.forEach(sid=>renderStaffCard(sid));
+}
+
+function renderStaffCard(sid){
+  const c=document.getElementById('staff-list');
+  // Remove existing card if any
+  const existing=document.getElementById(`card-${sid}`);
+  if(existing) existing.remove();
+
+  const d=document.createElement('div'); d.className='card'; d.id=`card-${sid}`;
+  d.innerHTML=`
+    <div class="card-hdr navy" style="cursor:default">
+      <div class="staff-hdr-row">
+        <span onclick="toggle('body-${sid}')" style="cursor:pointer;flex:1">
+          👤 ${SNAME[sid]}${SFULL[sid]?' — '+SFULL[sid]:''}
+        </span>
+        <span class="hours-badge" id="badge-${sid}" style="margin-right:6px">–</span>
+        <button class="btn-del-staff" onclick="deleteStaff('${sid}')" title="Delete Staff">🗑️ Delete</button>
+      </div>
+    </div>
+    <div class="card-body" id="body-${sid}">
+      <div class="col-label"><span>Subject</span><span>Class</span><span>Hrs</span><span style="color:#276749;text-align:center">💾</span><span></span></div>
+      <div id="rows-${sid}"></div>
+      <button class="btn-add" onclick="addRow('${sid}')">+ Add Subject</button>
+    </div>`;
+
+  // Insert before the Add New Staff button (keep button at top)
+  const addBtn=document.querySelector('.btn-add-staff');
+  c.insertBefore(d, addBtn ? addBtn.nextSibling : null);
+
+  if(defaultWorkload[sid]) defaultWorkload[sid].forEach(s=>addRow(sid,s));
+  rebadge(sid);
+}
+
+function deleteStaff(sid){
+  if(!confirm(`Delete staff ${SNAME[sid]}? This cannot be undone.`)) return;
+  // Remove from arrays and objects
+  STAFF_IDS.splice(STAFF_IDS.indexOf(sid),1);
+  delete SNAME[sid];
+  delete SFULL[sid];
+  delete defaultWorkload[sid];
+  // Remove card from UI
+  const card=document.getElementById(`card-${sid}`);
+  if(card) card.remove();
+  // Rebuild name editor
+  buildNameEditor();
+  buildIndivSelect();
+}
+
+let _staffCounter = 100;
+function addNewStaff(){
+  const shortName = prompt('Enter short name for new staff (e.g. A.B):');
+  if(!shortName || !shortName.trim()) return;
+  const fullName = prompt('Enter full name (optional, press OK to skip):') || '';
+  const sid = 'S' + (++_staffCounter);
+  STAFF_IDS.push(sid);
+  SNAME[sid] = shortName.trim();
+  SFULL[sid] = fullName.trim();
+  defaultWorkload[sid] = [];
+  renderStaffCard(sid);
+  buildNameEditor();
+  buildIndivSelect();
+  // Scroll to new card
+  const card=document.getElementById(`card-${sid}`);
+  if(card) card.scrollIntoView({behavior:'smooth'});
+}
+
+function toggle(id){
+  const el=document.getElementById(id);
+  if(el) el.style.display=el.style.display==='none'?'block':'none';
+}
+
+// Unique ID for datalist per row
+let _rowId = 0;
+function addRow(sid,data=null){
+  const wrap=document.getElementById(`rows-${sid}`);
+  const div=document.createElement('div'); div.className='subject-row';
+  const dlId = 'cls-dl-'+(++_rowId);
+  const curVal = data ? data.c : CLASSES[0];
+  const dlOpts = CLASSES.map(c=>`<option value="${c}">`).join('');
+  div.innerHTML=`
+    <input type="text" placeholder="Subject" value="${data?data.s:''}" data-role="subject" oninput="rebadge('${sid}')">
+    <input class="cls-combo" list="${dlId}" value="${curVal}" data-role="class" placeholder="Class..." oninput="rebadge('${sid}')">
+    <datalist id="${dlId}">${dlOpts}</datalist>
+    <input type="number" min="0" max="12" value="${data?data.h:1}" data-role="hours" oninput="rebadge('${sid}')">
+    <button class="btn-save-row" title="Save this row" onclick="saveRow(this,'${sid}')">💾</button>
+    <button class="btn btn-red btn-icon" onclick="this.closest('.subject-row').remove();rebadge('${sid}')">×</button>`;
+  wrap.appendChild(div);
+}
+
+function saveRow(btn, sid){
+  const row = btn.closest('.subject-row');
+  const subj = (row.querySelector('[data-role="subject"]')||{}).value||'';
+  const cls  = (row.querySelector('[data-role="class"]')||{}).value||'';
+  const hrs  = parseInt((row.querySelector('[data-role="hours"]')||{}).value)||0;
+  if(!subj.trim()){ showSaveStatus('⚠️ Enter subject name first!','#d97706'); return; }
+  // Visual feedback
+  btn.textContent='✅'; btn.style.background='#276749';
+  setTimeout(function(){ btn.textContent='💾'; },1500);
+  // Save everything
+  autoSave();
+  showSaveStatus('✅ Saved: '+subj.trim()+' | '+cls+' | '+hrs+' hrs','#276749');
+}
+
+function rebadge(sid){
+  let t=0;
+  document.querySelectorAll(`#rows-${sid} .subject-row`).forEach(r=>{
+    const hrsInput = r.querySelector('[data-role="hours"]');
+    t += parseInt(hrsInput ? hrsInput.value : 0) || 0;
+  });
+  document.getElementById(`badge-${sid}`).textContent=`${t} hrs`;
+  // Auto-save after every subject input (debounced 1.5s)
+  clearTimeout(window._autoSaveTimer);
+  window._autoSaveTimer = setTimeout(function(){
+    autoSave();
+    showSaveStatus('💾 Auto-saved','#276749');
+  }, 1500);
+}
+
+// ══════════════════════════════════════════
+// FIXED SLOTS
+// ══════════════════════════════════════════
+function buildFixedEditor(){
+  const c=document.getElementById('fixed-editor'); c.innerHTML='';
+  FIXED_CLASSES.forEach(cls=>{
+    const card=document.createElement('div'); card.className='card';
+    const sid=cls.replace(/[\s.]/g,'_');
+    card.innerHTML=`
+      <div class="card-hdr blue" onclick="toggle('fb-${sid}')">
+        <span>📘 ${cls}</span><span style="font-size:10px;opacity:0.8">Tap to expand</span>
+      </div>
+      <div class="card-body" id="fb-${sid}" style="overflow-x:auto">
+        <table class="fixed-grid">
+          <thead><tr><th>Day</th>`+PERIODS.map(p=>'<th>P'+p+'</th>').join('')+`</tr></thead>
+          <tbody id="ftb-${sid}"></tbody>
+        </table>
+      </div>`;
+    c.appendChild(card);
+    const tb=card.querySelector(`#ftb-${sid}`);
+    DAYS.forEach(day=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td class="day-lbl">${day}</td>`;
+      PERIODS.forEach(per=>{
+        const cur=(TAM_ENG[cls]&&TAM_ENG[cls][day]&&TAM_ENG[cls][day][per])||'';
+        const td=document.createElement('td');
+        const sel=document.createElement('select');
+        sel.className=`slot-sel ${cur==='TAM'?'tam-sel':cur==='ENG'?'eng-sel':'none-sel'}`;
+        sel.dataset.cls=cls; sel.dataset.day=day; sel.dataset.per=per;
+        ['','TAM','ENG'].forEach(o=>{
+          const op=document.createElement('option');
+          op.value=o; op.textContent=o||'–';
+          if(o===cur) op.selected=true;
+          sel.appendChild(op);
+        });
+        sel.addEventListener('change',function(){
+          if(!TAM_ENG[this.dataset.cls]) TAM_ENG[this.dataset.cls]={};
+          if(!TAM_ENG[this.dataset.cls][this.dataset.day]) TAM_ENG[this.dataset.cls][this.dataset.day]={};
+          const p=parseInt(this.dataset.per);
+          if(this.value) TAM_ENG[this.dataset.cls][this.dataset.day][p]=this.value;
+          else delete TAM_ENG[this.dataset.cls][this.dataset.day][p];
+          this.className=`slot-sel ${this.value==='TAM'?'tam-sel':this.value==='ENG'?'eng-sel':'none-sel'}`;
+        });
+        td.appendChild(sel); tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+  });
+}
+
+// ══════════════════════════════════════════
+// SCHEDULER
+// ══════════════════════════════════════════
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+function makeGrid(){
+  const g={};
+  DAYS.forEach(d=>{g[d]={};PERIODS.forEach(p=>{g[d][p]={};CLASSES.forEach(c=>g[d][p][c]='');});});
+  Object.entries(TAM_ENG).forEach(([cls,dm])=>
+    Object.entries(dm).forEach(([day,pm])=>
+      Object.entries(pm).forEach(([per,lbl])=>{if(lbl)g[day][+per][cls]=lbl;})
+    )
+  );
+  return g;
+}
+function staffBusyAt(g,day,per,staff){return CLASSES.some(c=>g[day][per][c]===staff);}
+function isConsecutive(g,day,per,cls,staff){
+  if(per>1&&g[day][per-1][cls]===staff) return true;
+  if(per<5&&g[day][per+1][cls]===staff) return true;
+  return false;
+}
+function countInClassOnDay(g,day,cls,staff){
+  return PERIODS.filter(p=>g[day][p][cls]===staff).length;
+}
+
+// Count how many times staff appears in each period across all classes
+function buildPeriodCount(g){
+  const pc={};
+  STAFF_IDS.forEach(s=>{pc[s]={};PERIODS.forEach(p=>pc[s][p]=0);});
+  DAYS.forEach(day=>PERIODS.forEach(per=>CLASSES.forEach(cls=>{
+    const v=g[day][per][cls];
+    if(v&&pc[v]) pc[v][per]++;
+  })));
+  return pc;
+}
+
+// subjectMap[sid][cls] = array of {subject, hrs, isAccounts}
+let subjectMap = {};
+
+function readSlots(){
+  const slots=[];
+  hoursMap={}; subjectMap={};
+  STAFF_IDS.forEach(sid=>{
+    hoursMap[sid]={}; subjectMap[sid]={};
+    document.querySelectorAll(`#rows-${sid} .subject-row`).forEach(row=>{
+      const subjInput = row.querySelector('[data-role="subject"]');
+      const clsInput  = row.querySelector('[data-role="class"]');
+      const hrsInput  = row.querySelector('[data-role="hours"]');
+      const subjRaw = subjInput ? subjInput.value.trim() : '';
+      const cls     = (clsInput ? clsInput.value.trim() : '') || CLASSES[0];
+      const hrs     = parseInt(hrsInput ? hrsInput.value : 0) || 0;
+      // Detect accounts subject — ends with A or contains " A" at end
+      const isAccounts = /A$/i.test(subjRaw);
+      const subj = subjRaw.replace(/\s*A$/i,'').trim(); // remove A marker for display
+      hoursMap[sid][cls]=(hoursMap[sid][cls]||0)+hrs;
+      if(!subjectMap[sid][cls]) subjectMap[sid][cls]=[];
+      subjectMap[sid][cls].push({subj:subjRaw, hrs, isAccounts});
+      // Tag each slot with subject info
+      for(let i=0;i<hrs;i++) slots.push({staff:sid, cls, isAccounts});
+    });
+  });
+  return slots;
+}
+
+// Track how many slots placed per staff per class (for split rule)
+// splitTrack[staff][cls] = count of slots placed so far
+let splitTrack = {};
+
+function attempt(slots){
+  const g=makeGrid();
+  const staffDayCount={};
+  STAFF_IDS.forEach(s=>{staffDayCount[s]={};DAYS.forEach(d=>staffDayCount[s][d]=0);});
+
+  const perCount={};
+  STAFF_IDS.forEach(s=>{perCount[s]={};PERIODS.forEach(p=>perCount[s][p]=0);});
+
+  splitTrack={};
+  STAFF_IDS.forEach(s=>{splitTrack[s]={};});
+
+  const byClass={};
+  CLASSES.forEach(c=>byClass[c]=[]);
+  // Include isAccounts flag in byClass
+  slots.forEach(s=>{
+    if(!byClass[s.cls]) byClass[s.cls]=[];
+    byClass[s.cls].push({staff:s.staff, isAccounts:s.isAccounts||false});
+  });
+  CLASSES.forEach(c=>shuffle(byClass[c]));
+
+  const free={};
+  CLASSES.forEach(cls=>{
+    free[cls]=[];
+    DAYS.forEach(day=>PERIODS.forEach(per=>{if(!g[day][per][cls])free[cls].push({day,per});}));
+    shuffle(free[cls]);
+  });
+
+  const unplaced=[];
+
+  CLASSES.forEach(cls=>{
+    byClass[cls].forEach(slotItem=>{
+      const staff = slotItem.staff;
+      const isAccounts = slotItem.isAccounts || false;
+      const totalHrs=(hoursMap[staff]&&hoursMap[staff][cls])||0;
+      const allowSameDayTwice=totalHrs>6;
+
+      // Split rule for >6 hrs:
+      // Morning slots (placed 0,1) → Period 1 or 2 only
+      // Afternoon slots (placed 2+) → Period 3 or 4 only
+      const placed=(splitTrack[staff][cls]||0);
+      const morningOnly = totalHrs>6 && placed<2;   // P1,2
+      const afternoonOnly = totalHrs>6 && placed>=2; // P3,4
+
+      // Accounts rule: subject marked with A → must be in P1,2,3 (max P4 as fallback)
+      // Non-accounts: no period restriction beyond split rule
+
+      const minPerCount=Math.min(...PERIODS.map(p=>perCount[staff][p]));
+
+      // Zone check combining split rule + accounts rule
+      function zoneOk(per){
+        // Split rule
+        if(morningOnly && per>2) return false;    // must be P1 or P2
+        if(afternoonOnly && per>4) return false;  // must be P3 or P4
+        if(afternoonOnly && per<3) return false;  // must be P3 or P4
+        // Accounts rule: prefer P1-3, allow P4 only
+        if(isAccounts && per>4) return false;     // accounts never in P5
+        return true;
+      }
+
+      function accountsPreferOk(per){
+        if(isAccounts && per>3) return false; // accounts prefer P1-3
+        return true;
+      }
+
+      // Priority 1: all rules + zone + accounts prefer + balance
+      let idx=free[cls].findIndex(({day,per})=>{
+        if(g[day][per][cls]) return false;
+        if(staffBusyAt(g,day,per,staff)) return false;
+        if(staffDayCount[staff][day]>=3) return false;
+        if(isConsecutive(g,day,per,cls,staff)) return false;
+        if(!allowSameDayTwice&&countInClassOnDay(g,day,cls,staff)>0) return false;
+        if(!zoneOk(per)) return false;
+        if(!accountsPreferOk(per)) return false; // accounts prefer P1-3
+        if(perCount[staff][per]>minPerCount+1) return false;
+        return true;
+      });
+
+      // Priority 2: zone + accounts prefer, relax balance
+      if(idx<0){
+        idx=free[cls].findIndex(({day,per})=>{
+          if(g[day][per][cls]) return false;
+          if(staffBusyAt(g,day,per,staff)) return false;
+          if(staffDayCount[staff][day]>=3) return false;
+          if(isConsecutive(g,day,per,cls,staff)) return false;
+          if(!allowSameDayTwice&&countInClassOnDay(g,day,cls,staff)>0) return false;
+          if(!zoneOk(per)) return false;
+          return true;
+        });
+      }
+
+      // Priority 3: zone + relax consecutive
+      if(idx<0){
+        idx=free[cls].findIndex(({day,per})=>{
+          if(g[day][per][cls]) return false;
+          if(staffBusyAt(g,day,per,staff)) return false;
+          if(staffDayCount[staff][day]>=3) return false;
+          if(!allowSameDayTwice&&countInClassOnDay(g,day,cls,staff)>0) return false;
+          if(!zoneOk(per)) return false;
+          return true;
+        });
+      }
+
+      // Priority 4: relax zone, keep max 3/day
+      if(idx<0){
+        idx=free[cls].findIndex(({day,per})=>{
+          if(g[day][per][cls]) return false;
+          if(staffBusyAt(g,day,per,staff)) return false;
+          if(staffDayCount[staff][day]>=3) return false;
+          if(!allowSameDayTwice&&countInClassOnDay(g,day,cls,staff)>0) return false;
+          return true;
+        });
+      }
+
+      // Priority 5: last resort max 3/day only
+      if(idx<0){
+        idx=free[cls].findIndex(({day,per})=>
+          !g[day][per][cls]&&!staffBusyAt(g,day,per,staff)&&staffDayCount[staff][day]<3
+        );
+      }
+
+      if(idx>=0){
+        const {day,per}=free[cls][idx];
+        g[day][per][cls]=staff;
+        staffDayCount[staff][day]++;
+        perCount[staff][per]++;
+        splitTrack[staff][cls]=(splitTrack[staff][cls]||0)+1;
+        free[cls].splice(idx,1);
+      } else {
+        unplaced.push({staff:staff,cls:cls});
+      }
+    });
+  });
+  return {g,unplaced};
+}
+
+function generateTimetable(){
+  autoSave(); // Auto save before generating
+  const slots=readSlots();
+  let best=null;
+  for(let i=0;i<2000;i++){
+    const res=attempt(slots);
+    if(!best||res.unplaced.length<best.unplaced.length) best=res;
+    if(best.unplaced.length===0) break;
+  }
+  lastGrid=best.g;
+  render(best.g,best.unplaced);
+  buildIndivSelect();
+  switchTab(2);
+}
+
+// ══════════════════════════════════════════
+// PERIOD BALANCE CHECK
+// ══════════════════════════════════════════
+function checkPeriodBalance(g){
+  const pc=buildPeriodCount(g);
+  let warnings=[];
+  STAFF_IDS.forEach(staff=>{
+    const counts=PERIODS.map(p=>pc[staff][p]);
+    const mn=Math.min(...counts), mx=Math.max(...counts);
+    if(mx-mn>2){
+      warnings.push(`${SNAME[staff]}: Period counts [${counts.join(',')}] — difference ${mx-mn} (max allowed: 2)`);
+    }
+  });
+  // Build balance display
+  const card=document.getElementById('balance-card');
+  const cont=document.getElementById('balance-content');
+  card.style.display='block';
+  let html='';
+  STAFF_IDS.forEach(staff=>{
+    const counts=PERIODS.map(p=>pc[staff][p]);
+    const mn=Math.min(...counts),mx=Math.max(...counts);
+    const ok=mx-mn<=1;
+    const warn=mx-mn===2;
+    html+=`<div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:#1a3c6e;margin-bottom:4px">
+        ${SNAME[staff]}${SFULL[staff]?' ('+SFULL[staff]+')':''} 
+        <span style="font-weight:400;color:${ok?'#276749':warn?'#92400e':'#c53030'}">
+          ${ok?'✅ Balanced':warn?'⚠️ Minor diff':'❌ Unbalanced'}
+        </span>
+      </div>
+      <div class="balance-grid">
+        ${PERIODS.map(p=>{
+          const cls=counts[p-1]===mn&&ok?'ok':counts[p-1]===mx&&mx-mn>1?'warn':'';
+          return `<div class="balance-cell ${cls}">
+            <div class="per-lbl">Period ${p}</div>
+            <div class="per-count">${counts[p-1]}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+  cont.innerHTML=html;
+  return warnings;
+}
+
+// ══════════════════════════════════════════
+// RENDER FULL TIMETABLE
+// ══════════════════════════════════════════
+function buildTableHTML(g){
+  let html=`<table class="timetable">
+    <thead><tr><th>Day</th><th>Class</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead><tbody>`;
+  DAYS.forEach((day,di)=>{
+    CLASSES.forEach((cls,ci)=>{
+      html+='<tr>';
+      if(ci===0) html+=`<td class="day-cell" rowspan="5">${day}</td>`;
+      html+=`<td class="class-cell">${cls}</td>`;
+      PERIODS.forEach(p=>{
+        const v=g[day][p][cls]||'';
+        let cc='empty-cell',txt='-';
+        if(v==='TAM'){cc='tam';txt='TAM';}
+        else if(v==='ENG'){cc='eng';txt='ENG';}
+        else if(v&&SNAME[v]){cc='staff-cell';txt=SNAME[v];}
+        html+=`<td class="${cc}">${txt}</td>`;
+      });
+      html+='</tr>';
+    });
+    if(di<DAYS.length-1) html+=`<tr class="day-sep"><td colspan="7"></td></tr>`;
+  });
+  html+='</tbody></table>';
+  return html;
+}
+
+function render(g,unplaced){
+  document.getElementById('ok-box').style.display=unplaced.length===0?'block':'none';
+  const err=document.getElementById('err-box');
+  if(unplaced.length>0){
+    err.style.display='block';
+    const msgs=[...new Set(unplaced.map(u=>`${SNAME[u.staff]} (${u.cls})`))];
+    err.innerHTML=`⚠️ ${unplaced.length} slot(s) unplaced: ${msgs.join(', ')}. Tap 🔄 Regenerate.`;
+  } else { err.style.display='none'; }
+
+  // Period balance
+  const warnings=checkPeriodBalance(g);
+  const wb=document.getElementById('warn-box');
+  if(warnings.length>0){
+    wb.style.display='block';
+    wb.innerHTML='⚠️ Period imbalance detected. Tap "📊 Period Balance Check" below for details.';
+  } else { wb.style.display='none'; }
+
+  document.getElementById('tt-table-container').innerHTML=buildTableHTML(g);
+}
+
+// ══════════════════════════════════════════
+// INDIVIDUAL STAFF TIMETABLE
+// ══════════════════════════════════════════
+function buildIndivSelect(){
+  const sel=document.getElementById('indiv-select');
+  sel.innerHTML='<option value="">-- Select Staff --</option>';
+  STAFF_IDS.forEach(sid=>{
+    const o=document.createElement('option');
+    o.value=sid;
+    o.textContent=`${SNAME[sid]}${SFULL[sid]?' — '+SFULL[sid]:''}`;
+    sel.appendChild(o);
+  });
+}
+
+function renderIndividual(){
+  const sid=document.getElementById('indiv-select').value;
+  const wrapper=document.getElementById('indiv-wrapper');
+  const empty=document.getElementById('indiv-empty');
+  const dlRow=document.getElementById('indiv-dl-row');
+
+  if(!sid||!lastGrid){
+    wrapper.style.display='none';
+    empty.style.display='block';
+    dlRow.style.display='none';
+    return;
+  }
+
+  wrapper.style.display='block';
+  empty.style.display='none';
+  dlRow.style.display='grid';
+
+  document.getElementById('indiv-title').textContent=HDR.college+' | '+HDR.dept;
+  document.getElementById('indiv-subtitle').textContent=
+    `Individual Timetable: ${SNAME[sid]}${SFULL[sid]?' ('+SFULL[sid]+')':''} | ${HDR.title}`;
+
+  // Build individual table: rows=days, cols=periods, show class name if this staff
+  let html=`<table class="indiv-tt">
+    <thead><tr><th>Day</th><th>Period 1</th><th>Period 2</th><th>Period 3</th><th>Period 4</th><th>Period 5</th><th>Total</th></tr></thead>
+    <tbody>`;
+
+  DAYS.forEach(day=>{
+    html+=`<tr><td class="indiv-day">${day}</td>`;
+    let dayTotal=0;
+    PERIODS.forEach(per=>{
+      // Find which class this staff teaches in this period on this day
+      let found='', foundCls='';
+      CLASSES.forEach(cls=>{
+        const v=lastGrid[day][per][cls];
+        if(v===sid){found=cls;foundCls=cls;}
+        else if(v==='TAM'&&cls===sid){found='TAM';}
+        else if(v==='ENG'&&cls===sid){found='ENG';}
+      });
+      // Also check if this period has TAM/ENG for any class
+      let tamEngFound='';
+      CLASSES.forEach(cls=>{
+        const v=lastGrid[day][per][cls];
+        if(v==='TAM'||v==='ENG') tamEngFound=v;
+      });
+
+      if(found){
+        html+=`<td class="indiv-self">${found}</td>`;
+        dayTotal++;
+      } else {
+        html+=`<td class="indiv-free">–</td>`;
+      }
+    });
+    html+=`<td style="font-weight:700;color:#1a3c6e">${dayTotal}</td></tr>`;
+  });
+
+  // Total row per period
+  html+=`<tr><td style="background:#553c9a;color:white;font-weight:700">Total</td>`;
+  PERIODS.forEach(per=>{
+    let cnt=0;
+    DAYS.forEach(day=>{
+      CLASSES.forEach(cls=>{if(lastGrid[day][per][cls]===sid)cnt++;});
+    });
+    html+=`<td style="font-weight:700;color:#553c9a">${cnt}</td>`;
+  });
+  const grandTotal=DAYS.reduce((t,day)=>t+PERIODS.reduce((tt,per)=>tt+(CLASSES.some(cls=>lastGrid[day][per][cls]===sid)?1:0),0),0);
+  html+=`<td style="font-weight:700;color:#553c9a">${grandTotal}</td></tr>`;
+  html+='</tbody></table>';
+
+  document.getElementById('indiv-table').innerHTML=html;
+}
+
+function buildIndivPrintHTML(sid){
+  if(!sid||!lastGrid) return '';
+  const name=`${SNAME[sid]}${SFULL[sid]?' ('+SFULL[sid]+')':''}`;
+  const parts=[];
+  parts.push('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Individual Timetable</title>');
+  parts.push('<style>');
+  parts.push('*{box-sizing:border-box;margin:0;padding:0;}');
+  parts.push('body{font-family:Arial,sans-serif;padding:10mm;}');
+  parts.push('h2{text-align:center;color:#1a3c6e;font-size:13pt;margin:2px 0;}');
+  parts.push('h3{text-align:center;color:#553c9a;font-size:11pt;margin:2px 0;}');
+  parts.push('p{text-align:center;color:#555;font-size:9pt;margin:2px 0 8px;}');
+  parts.push('table{width:100%;border-collapse:collapse;font-size:10pt;}');
+  parts.push('th{background:#553c9a;color:white;padding:7px 5px;text-align:center;border:1px solid #44318a;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
+  parts.push('td{border:1px solid #ccd;padding:5px 4px;text-align:center;}');
+  parts.push('.indiv-day{background:#553c9a!important;color:white;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
+  parts.push('.indiv-self{background:#dbeafe!important;color:#1a3c6e;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
+  parts.push('.indiv-free{color:#ccc;}');
+  parts.push('@page{size:A4 landscape;margin:10mm;}');
+  parts.push('</style></head><body>');
+  parts.push('<h2>'+HDR.college+'</h2>');
+  parts.push('<h3>'+HDR.dept+'</h3>');
+  parts.push('<p>Individual Timetable: '+name+' | '+HDR.title+'</p>');
+  parts.push('<table><thead><tr><th>Day</th><th>Period 1</th><th>Period 2</th><th>Period 3</th><th>Period 4</th><th>Period 5</th><th>Total</th></tr></thead><tbody>');
+  DAYS.forEach(function(day){
+    var t=0, row='<tr><td class="indiv-day">'+day+'</td>';
+    PERIODS.forEach(function(p){
+      var found='';
+      CLASSES.forEach(function(cls){if(lastGrid[day][p][cls]===sid)found=cls;});
+      if(found){row+='<td class="indiv-self">'+found+'</td>';t++;}
+      else row+='<td class="indiv-free">-</td>';
+    });
+    row+='<td style="font-weight:700">'+t+'</td></tr>';
+    parts.push(row);
+  });
+  parts.push('<tr><td style="background:#553c9a;color:white;font-weight:700">Total</td>');
+  PERIODS.forEach(function(p){
+    var cnt=DAYS.reduce(function(a,day){return a+(CLASSES.some(function(cls){return lastGrid[day][p][cls]===sid;})?1:0);},0);
+    parts.push('<td style="font-weight:700;color:#553c9a">'+cnt+'</td>');
+  });
+  var gt=DAYS.reduce(function(a,day){return a+PERIODS.reduce(function(b,p){return b+(CLASSES.some(function(cls){return lastGrid[day][p][cls]===sid;})?1:0);},0);},0);
+  parts.push('<td style="font-weight:700;color:#553c9a">'+gt+'</td></tr>');
+  parts.push('</tbody></table></body></html>');
+  return parts.join('');
+}
+
+function printIndividual(){
+  const sid=document.getElementById('indiv-select').value;
+  if(!sid){alert('Select a staff first!');return;}
+  const html=buildIndivPrintHTML(sid);
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`Timetable_${SNAME[sid].replace('.','')}.html`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const l=document.getElementById('indiv-loading');
+  l.style.display='block'; l.textContent='✅ HTML downloaded! Open in Chrome → Print → Save as PDF';
+  setTimeout(()=>l.style.display='none',4000);
+}
+
+function downloadIndivPDF(){printIndividual();}
+
+// ══════════════════════════════════════════
+// DOWNLOAD PDF (Full Timetable)
+// ══════════════════════════════════════════
+function downloadPDF(){
+  if(!lastGrid){alert('Generate timetable first!');return;}
+  const tableHTML=buildTableHTML(lastGrid);
+  const parts=[];
+  parts.push('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Timetable</title>');
+  parts.push('<style>');
+  parts.push('*{box-sizing:border-box;margin:0;padding:0;}');
+  parts.push('body{font-family:Arial,sans-serif;padding:8mm;}');
+  parts.push('h2{text-align:center;color:#1a3c6e;font-size:12pt;margin:2px 0;}');
+  parts.push('h3{text-align:center;color:#1a3c6e;font-size:10pt;margin:2px 0;}');
+  parts.push('p{text-align:center;color:#555;font-size:8pt;margin:2px 0 7px;}');
+  parts.push('table{width:100%;border-collapse:collapse;font-size:9pt;}');
+  parts.push('th{background:#1a3c6e;color:#fff;padding:5px 3px;text-align:center;border:1px solid #15336b;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
+  parts.push('td{border:1px solid #bbb;padding:4px 2px;text-align:center;vertical-align:middle;}');
+  parts.push('.day-cell{background:#1a3c6e!important;color:#fff;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
+  parts.push('.class-cell{background:#e8eef8!important;font-weight:600;color:#1a3c6e;font-size:8pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
+  parts.push('.tam{background:#fff3cd!important;color:#7a5c00;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
+  parts.push('.eng{background:#d4edda!important;color:#155724;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
+  parts.push('.staff-cell{font-weight:700;color:#1a3c6e;}');
+  parts.push('.empty-cell{color:#ccc;}');
+  parts.push('.day-sep td{height:2px;background:#dde8f8;border:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
+  parts.push('.sig{margin-top:12px;text-align:right;font-size:8pt;}');
+  parts.push('@page{size:A4 landscape;margin:8mm;}');
+  parts.push('</style></head><body>');
+  parts.push('<h2>'+HDR.college+'</h2><h3>'+HDR.dept+'</h3><p>'+HDR.title+'</p>');
+  parts.push(tableHTML);
+  parts.push('<div class="sig">Signature of HOD: _________________________</div>');
+  parts.push('</body></html>');
+  const html=parts.join('');
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='Timetable_Commerce_2026_2027.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  const l=document.getElementById('loading-msg');
+  l.style.display='block';
+  l.textContent='✅ Downloaded! Open in Chrome → Ctrl+P → Save as PDF';
+  setTimeout(function(){l.style.display='none';},5000);
+}
+
+function downloadWord(){
+  if(!lastGrid){alert('Generate timetable first!');return;}
+  document.getElementById('loading-msg').style.display='block';
+  document.getElementById('loading-msg').textContent='⏳ Preparing Word...';
+  packAndDownload(buildWordXML(lastGrid,false,null),'Timetable_Commerce_2026_2027.docx','loading-msg');
+}
+
+function downloadIndivWord(){
+  const sid=document.getElementById('indiv-select').value;
+  if(!sid||!lastGrid){alert('Select staff and generate timetable first!');return;}
+  document.getElementById('indiv-loading').style.display='block';
+  document.getElementById('indiv-loading').textContent='⏳ Preparing Word...';
+  packAndDownload(buildWordXML(lastGrid,true,sid),`Timetable_${SNAME[sid].replace('.','')}.docx`,'indiv-loading');
+}
+
+// ══════════════════════════════════════════
+// TAB SWITCH
+// ══════════════════════════════════════════
+function switchTab(idx){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  document.querySelectorAll('.panel').forEach((p,i)=>p.classList.toggle('active',i===idx));
+}
+
+// ══════════════════════════════════════════
+// SAVE & LOAD
+// ══════════════════════════════════════════
+function collectCurrentData(){
+  const workload={};
+  STAFF_IDS.forEach(sid=>{
+    workload[sid]=[];
+    document.querySelectorAll(`#rows-${sid} .subject-row`).forEach(row=>{
+      const subj=(row.querySelector('[data-role="subject"]')||{}).value||'';
+      const cls =(row.querySelector('[data-role="class"]')||{}).value||'';
+      const hrs =parseInt((row.querySelector('[data-role="hours"]')||{}).value)||0;
+      if(subj.trim()) workload[sid].push({s:subj.trim(),c:cls.trim(),h:hrs});
+    });
+  });
+  return {
+    version:'3.0',
+    savedAt:new Date().toLocaleString(),
+    HDR:{...HDR},
+    STAFF_IDS:[...STAFF_IDS],
+    SNAME:{...SNAME},
+    SFULL:{...SFULL},
+    TAM_ENG:JSON.parse(JSON.stringify(TAM_ENG)),
+    workload
+  };
+}
+
+// ── SAVE ──────────────────────────────────
+function saveData(){
+  try{
+    const data=collectCurrentData();
+    const json=JSON.stringify(data,null,2);
+
+    // Download as JSON file
+    const blob=new Blob([json],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='timetable_data.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+
+    showSaveStatus('✅ Saved! timetable_data.json downloaded.','#276749');
+  }catch(e){
+    showSaveStatus('❌ Save failed: '+e.message,'#c53030');
+  }
+}
+
+// ── LOAD ──────────────────────────────────
+function loadData(){
+  // Directly open file picker — no confirm() needed
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='.json,application/json';
+  input.onchange=function(e){
+    const file=e.target.files[0];
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        const data=JSON.parse(ev.target.result);
+        applyLoadedData(data);
+        showSaveStatus('✅ Loaded: '+file.name+' (Saved: '+(data.savedAt||'unknown')+')','#276749');
+      }catch(err){
+        showSaveStatus('❌ Invalid file: '+err.message,'#c53030');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ── APPLY LOADED DATA ─────────────────────
+function applyLoadedData(data){
+  if(!data||!data.STAFF_IDS){alert('Invalid data file!');return;}
+
+  // Restore HDR
+  Object.assign(HDR,data.HDR||{});
+
+  // Restore STAFF_IDS
+  STAFF_IDS.length=0;
+  data.STAFF_IDS.forEach(s=>STAFF_IDS.push(s));
+
+  // Restore SNAME, SFULL
+  Object.keys(SNAME).forEach(k=>delete SNAME[k]);
+  Object.assign(SNAME,data.SNAME||{});
+  Object.keys(SFULL).forEach(k=>delete SFULL[k]);
+  Object.assign(SFULL,data.SFULL||{});
+
+  // Restore TAM_ENG
+  Object.keys(TAM_ENG).forEach(k=>delete TAM_ENG[k]);
+  Object.assign(TAM_ENG,data.TAM_ENG||{});
+
+  // Restore workload
+  Object.keys(defaultWorkload).forEach(k=>delete defaultWorkload[k]);
+  if(data.workload) Object.assign(defaultWorkload,data.workload);
+
+  // Update heading inputs & display
+  const ec=document.getElementById('edit-college');
+  const ed=document.getElementById('edit-dept');
+  const et=document.getElementById('edit-tttitle');
+  if(ec) ec.value=HDR.college||'';
+  if(ed) ed.value=HDR.dept||'';
+  if(et) et.value=HDR.title||'';
+  document.getElementById('hdr-college').textContent    =HDR.college||'';
+  document.getElementById('hdr-dept').textContent       =HDR.dept||'';
+  document.getElementById('tt-college-lbl').textContent =HDR.college||'';
+  document.getElementById('tt-dept-lbl').textContent    =HDR.dept||'';
+  document.getElementById('tt-title-lbl').textContent   =HDR.title||'';
+
+  // Rebuild all UI
+  buildNameEditor();
+  buildInputUI();
+  buildFixedEditor();
+  buildIndivSelect();
+}
+
+// ── STATUS ────────────────────────────────
+function showSaveStatus(msg,color){
+  const el=document.getElementById('save-status');
+  el.textContent=msg;
+  el.style.color=color;
+  el.style.display='block';
+  setTimeout(()=>el.style.display='none',5000);
+}
+
+// ── AUTO SAVE ─────────────────────────────
+function autoSave(){
+  try{
+    var data = collectCurrentData();
+    var json = JSON.stringify(data);
+    // localStorage persists after app close — best option
+    try{ localStorage.setItem('timetable_autosave', json); return; }catch(e1){}
+    // Fallback: sessionStorage (clears on tab close but better than nothing)
+    try{ sessionStorage.setItem('timetable_autosave', json); }catch(e2){}
+  }catch(e){}
+}
+
+function getSavedData(){
+  try{
+    var ls = localStorage.getItem('timetable_autosave');
+    if(ls) return ls;
+  }catch(e){}
+  try{
+    var ss = sessionStorage.getItem('timetable_autosave');
+    if(ss) return ss;
+  }catch(e){}
+  return null;
+}
+
+// ══════════════════════════════════════════
+// DOWNLOAD WORKLOAD
+// ══════════════════════════════════════════
+function collectWorkloadRows(){
+  const data=[];
+  STAFF_IDS.forEach(function(sid){
+    const rows=document.querySelectorAll('#rows-'+sid+' .subject-row');
+    const subjects=[];
+    var total=0;
+    rows.forEach(function(row){
+      const subj=(row.querySelector('[data-role="subject"]')||{}).value||'';
+      const cls =(row.querySelector('[data-role="class"]')||{}).value||'';
+      const hrs =parseInt((row.querySelector('[data-role="hours"]')||{}).value)||0;
+      if(subj.trim()){ subjects.push({subj:subj.trim(),cls,hrs}); total+=hrs; }
+    });
+    if(subjects.length>0) data.push({sid,name:SNAME[sid],full:SFULL[sid],subjects,total});
+  });
+  return data;
+}
+
+function downloadWorkloadPDF(){
+  const data=collectWorkloadRows();
+  if(data.length===0){alert('No workload data to download!');return;}
+  const parts=[];
+  parts.push('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Workload</title>');
+  parts.push('<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Arial,sans-serif;padding:10mm;}');
+  parts.push('h2,h3{text-align:center;color:#1a3c6e;margin:2px 0;}p{text-align:center;color:#555;font-size:9pt;margin:2px 0 10px;}');
+  parts.push('.block{margin-bottom:14px;}.sname{background:#1a3c6e;color:white;padding:5px 10px;font-size:11pt;font-weight:700;border-radius:4px 4px 0 0;}');
+  parts.push('table{width:100%;border-collapse:collapse;font-size:9pt;}th{background:#2c5282;color:white;padding:5px;text-align:center;border:1px solid #1a3c6e;}');
+  parts.push('td{border:1px solid #ccd;padding:5px;text-align:center;}tr:nth-child(even){background:#f0f4ff;}');
+  parts.push('.tot{background:#e8f0fb!important;font-weight:700;color:#1a3c6e;}.acct{color:#c53030;font-weight:700;}');
+  parts.push('@page{size:A4;margin:10mm;}-webkit-print-color-adjust:exact;print-color-adjust:exact;');
+  parts.push('</style></head><body>');
+  parts.push('<h2>'+HDR.college+'</h2><h3>'+HDR.dept+'</h3>');
+  parts.push('<p>WORK LOAD FOR STAFF | '+HDR.title+'</p>');
+  data.forEach(function(d){
+    parts.push('<div class="block"><div class="sname">👤 '+d.name+(d.full?' — '+d.full:'')+'</div>');
+    parts.push('<table><thead><tr><th>S.No</th><th>Subject</th><th>Class</th><th>Hours</th></tr></thead><tbody>');
+    d.subjects.forEach(function(s,i){
+      var isA=/A$/i.test(s.subj);
+      parts.push('<tr><td>'+(i+1)+'</td><td style="text-align:left'+(isA?';color:#c53030;font-weight:700':'')+'">'
+        +s.subj+(isA?' ⭐':'')+'</td><td>'+s.cls+'</td><td>'+s.hrs+(s.hrs===1?' Hour':' Hours')+'</td></tr>');
+    });
+    parts.push('<tr class="tot"><td colspan="3" style="text-align:right">Total</td><td>'+d.total+' Hours</td></tr>');
+    parts.push('</tbody></table></div>');
+  });
+  parts.push('<br><p style="text-align:right;font-size:9pt">Signature of HOD: _________________________</p>');
+  parts.push('</body></html>');
+  const blob=new Blob([parts.join('')],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='Workload_'+HDR.dept.replace(/\s+/g,'_')+'.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  showSaveStatus('✅ PDF ready! Open file in Chrome → Ctrl+P → Save as PDF','#276749');
+}
+
+function downloadWorkloadWord(){
+  const data=collectWorkloadRows();
+  if(data.length===0){alert('No workload data to download!');return;}
+  if(typeof JSZip==='undefined'){showSaveStatus('❌ JSZip not loaded. Connect internet.','#c53030');return;}
+
+  const NAVY='1A3C6E', BLUE='E8EEF8', WHITE='FFFFFF', RED='C53030';
+  function rpr(color,bold,size){return '<w:rPr>'+(bold?'<w:b/>':'')+'<w:color w:val="'+color+'"/><w:sz w:val="'+size+'"/><w:szCs w:val="'+size+'"/></w:rPr>';}
+  function shd(fill){return '<w:shd w:val="clear" w:color="auto" w:fill="'+fill+'"/>';}
+  function cell(text,fill,color,bold,align){
+    return '<w:tc><w:tcPr>'+shd(fill)+'<w:tcW w:w="0" w:type="auto"/></w:tcPr>'+
+      '<w:p><w:pPr><w:jc w:val="'+(align||'center')+'"/></w:pPr>'+
+      '<w:r>'+rpr(color,bold,18)+'<w:t xml:space="preserve">'+text+'</w:t></w:r></w:p></w:tc>';
+  }
+  function para(text,size,bold,color,align){
+    return '<w:p><w:pPr><w:jc w:val="'+(align||'center')+'"/><w:spacing w:after="80"/></w:pPr>'+
+      '<w:r>'+rpr(color,bold,size)+'<w:t>'+text+'</w:t></w:r></w:p>';
+  }
+
+  var docXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  docXml+='<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>';
+  docXml+=para(HDR.college,26,true,NAVY,'center');
+  docXml+=para(HDR.dept,24,true,NAVY,'center');
+  docXml+=para('WORK LOAD FOR STAFF | '+HDR.title,20,false,'555555','center');
+  docXml+='<w:p/>';
+
+  data.forEach(function(d){
+    // Staff heading para
+    docXml+=para('Staff: '+d.name+(d.full?' — '+d.full:''),22,true,NAVY,'left');
+
+    // Table
+    docXml+='<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>';
+    ['top','left','bottom','right','insideH','insideV'].forEach(function(b){
+      docXml+='<w:'+b+' w:val="single" w:sz="4" w:color="AAAAAA"/>';
+    });
+    docXml+='</w:tblBorders></w:tblPr>';
+
+    // Header row
+    docXml+='<w:tr>';
+    docXml+=cell('S.No',NAVY,WHITE,true,'center');
+    docXml+=cell('Subject',NAVY,WHITE,true,'left');
+    docXml+=cell('Class',NAVY,WHITE,true,'center');
+    docXml+=cell('Hours',NAVY,WHITE,true,'center');
+    docXml+='</w:tr>';
+
+    d.subjects.forEach(function(s,i){
+      var isA=/A$/i.test(s.subj);
+      var bg = i%2===0 ? WHITE : 'F0F4FF';
+      var subjColor = isA ? RED : '222222';
+      docXml+='<w:tr>';
+      docXml+=cell(String(i+1),bg,'333333',false,'center');
+      docXml+=cell(s.subj+(isA?' ★':''),bg,subjColor,isA,'left');
+      docXml+=cell(s.cls,bg,'333333',false,'center');
+      docXml+=cell(s.hrs+(s.hrs===1?' Hour':' Hours'),bg,'333333',false,'center');
+      docXml+='</w:tr>';
+    });
+
+    // Total row
+    docXml+='<w:tr>';
+    docXml+=cell('',BLUE,NAVY,true,'center');
+    docXml+=cell('',BLUE,NAVY,true,'right');
+    docXml+=cell('Total',BLUE,NAVY,true,'right');
+    docXml+=cell(String(d.total)+' Hours',BLUE,NAVY,true,'center');
+    docXml+='</w:tr>';
+    docXml+='</w:tbl><w:p/>';
+  });
+
+  docXml+=para('Signature of HOD: _________________________',20,false,'333333','right');
+  docXml+='<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>';
+  docXml+='<w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720"/>';
+  docXml+='</w:sectPr></w:body></w:document>';
+
+  var ct='<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
+  var rr='<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
+
+  var zip=new JSZip();
+  zip.file('[Content_Types].xml',ct);
+  zip.file('_rels/.rels',rr);
+  zip.file('word/document.xml',docXml);
+  zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'})
+    .then(function(blob){
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');
+      a.href=url; a.download='Workload_'+HDR.dept+'.docx';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(url);},1000);
+      showSaveStatus('✅ Workload Word file downloaded!','#276749');
+    }).catch(function(e){showSaveStatus('❌ Error: '+e.message,'#c53030');});
+}
+
+
+// ══════════════════════════════════════════
+// SAVE & LOAD
+// ══════════════════════════════════════════
+function collectCurrentData(){
+  const workload={};
+  STAFF_IDS.forEach(sid=>{
+    workload[sid]=[];
+    document.querySelectorAll(`#rows-${sid} .subject-row`).forEach(row=>{
+      const subj=(row.querySelector('[data-role="subject"]')||{}).value||'';
+      const cls =(row.querySelector('[data-role="class"]')||{}).value||'';
+      const hrs =parseInt((row.querySelector('[data-role="hours"]')||{}).value)||0;
+      if(subj.trim()) workload[sid].push({s:subj.trim(),c:cls.trim(),h:hrs});
+    });
+  });
+  return {
+    version:'3.0',
+    savedAt:new Date().toLocaleString(),
+    HDR:{...HDR},
+    STAFF_IDS:[...STAFF_IDS],
+    SNAME:{...SNAME},
+    SFULL:{...SFULL},
+    TAM_ENG:JSON.parse(JSON.stringify(TAM_ENG)),
+    workload
+  };
+}
+
+// ── SAVE ──────────────────────────────────
+function saveData(){
+  try{
+    const data=collectCurrentData();
+    const json=JSON.stringify(data,null,2);
+
+    // Download as JSON file
+    const blob=new Blob([json],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='timetable_data.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+
+    showSaveStatus('✅ Saved! timetable_data.json downloaded.','#276749');
+  }catch(e){
+    showSaveStatus('❌ Save failed: '+e.message,'#c53030');
+  }
+}
+
+// ── LOAD ──────────────────────────────────
+function loadData(){
+  // Directly open file picker — no confirm() needed
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='.json,application/json';
+  input.onchange=function(e){
+    const file=e.target.files[0];
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        const data=JSON.parse(ev.target.result);
+        applyLoadedData(data);
+        showSaveStatus('✅ Loaded: '+file.name+' (Saved: '+(data.savedAt||'unknown')+')','#276749');
+      }catch(err){
+        showSaveStatus('❌ Invalid file: '+err.message,'#c53030');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ── APPLY LOADED DATA ─────────────────────
+function applyLoadedData(data){
+  if(!data||!data.STAFF_IDS){alert('Invalid data file!');return;}
+
+  // Restore HDR
+  Object.assign(HDR,data.HDR||{});
+
+  // Restore STAFF_IDS
+  STAFF_IDS.length=0;
+  data.STAFF_IDS.forEach(s=>STAFF_IDS.push(s));
+
+  // Restore SNAME, SFULL
+  Object.keys(SNAME).forEach(k=>delete SNAME[k]);
+  Object.assign(SNAME,data.SNAME||{});
+  Object.keys(SFULL).forEach(k=>delete SFULL[k]);
+  Object.assign(SFULL,data.SFULL||{});
+
+  // Restore TAM_ENG
+  Object.keys(TAM_ENG).forEach(k=>delete TAM_ENG[k]);
+  Object.assign(TAM_ENG,data.TAM_ENG||{});
+
+  // Restore workload
+  Object.keys(defaultWorkload).forEach(k=>delete defaultWorkload[k]);
+  if(data.workload) Object.assign(defaultWorkload,data.workload);
+
+  // Update heading inputs & display
+  const ec=document.getElementById('edit-college');
+  const ed=document.getElementById('edit-dept');
+  const et=document.getElementById('edit-tttitle');
+  if(ec) ec.value=HDR.college||'';
+  if(ed) ed.value=HDR.dept||'';
+  if(et) et.value=HDR.title||'';
+  document.getElementById('hdr-college').textContent    =HDR.college||'';
+  document.getElementById('hdr-dept').textContent       =HDR.dept||'';
+  document.getElementById('tt-college-lbl').textContent =HDR.college||'';
+  document.getElementById('tt-dept-lbl').textContent    =HDR.dept||'';
+  document.getElementById('tt-title-lbl').textContent   =HDR.title||'';
+
+  // Rebuild all UI
+  buildNameEditor();
+  buildInputUI();
+  buildFixedEditor();
+  buildIndivSelect();
+}
+
+// ── STATUS ────────────────────────────────
+function showSaveStatus(msg,color){
+  const el=document.getElementById('save-status');
+  el.textContent=msg;
+  el.style.color=color;
+  el.style.display='block';
+  setTimeout(()=>el.style.display='none',5000);
+}
+
+// ── AUTO SAVE ─────────────────────────────
+// autoSave + getSavedData defined above
+
+
+// ══════════════════════════════════════════
+// DOWNLOAD WORKLOAD
+// ══════════════════════════════════════════
+function downloadWorkload(){
+  const parts=[];
+  parts.push('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Workload</title>');
+  parts.push('<style>');
+  parts.push('*{box-sizing:border-box;margin:0;padding:0;}');
+  parts.push('body{font-family:Arial,sans-serif;padding:10mm;}');
+  parts.push('h2,h3{text-align:center;color:#1a3c6e;margin:3px 0;}');
+  parts.push('p{text-align:center;color:#555;font-size:9pt;margin:3px 0 12px;}');
+  parts.push('.staff-block{margin-bottom:16px;}');
+  parts.push('.staff-name{background:#1a3c6e;color:white;padding:6px 10px;font-size:11pt;font-weight:700;border-radius:4px;margin-bottom:6px;}');
+  parts.push('table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:4px;}');
+  parts.push('th{background:#2c5282;color:white;padding:5px;text-align:center;border:1px solid #1a3c6e;}');
+  parts.push('td{border:1px solid #ccd;padding:5px;text-align:center;}');
+  parts.push('tr:nth-child(even){background:#f0f4ff;}');
+  parts.push('.total-row{background:#e8f0fb!important;font-weight:700;color:#1a3c6e;}');
+  parts.push('@page{size:A4;margin:10mm;}');
+  parts.push('</style></head><body>');
+  parts.push('<h2>'+HDR.college+'</h2>');
+  parts.push('<h3>'+HDR.dept+'</h3>');
+  parts.push('<p>WORK LOAD FOR STAFF | '+HDR.title+'</p>');
+
+  STAFF_IDS.forEach(function(sid){
+    const rows=document.querySelectorAll('#rows-'+sid+' .subject-row');
+    if(rows.length===0) return;
+    parts.push('<div class="staff-block">');
+    parts.push('<div class="staff-name">👤 '+SNAME[sid]+(SFULL[sid]?' — '+SFULL[sid]:'')+'</div>');
+    parts.push('<table>');
+    parts.push('<thead><tr><th>S.No</th><th>Subject</th><th>Class</th><th>Hours</th></tr></thead>');
+    parts.push('<tbody>');
+    var total=0, sno=1;
+    rows.forEach(function(row){
+      const subj=(row.querySelector('[data-role="subject"]')||{}).value||'';
+      const cls =(row.querySelector('[data-role="class"]')||{}).value||'';
+      const hrs =parseInt((row.querySelector('[data-role="hours"]')||{}).value)||0;
+      if(!subj.trim()) return;
+      parts.push('<tr><td>'+sno+'</td><td style="text-align:left">'+subj+'</td><td>'+cls+'</td><td>'+hrs+' '+(hrs===1?'Hour':'Hours')+'</td></tr>');
+      total+=hrs; sno++;
+    });
+    parts.push('<tr class="total-row"><td colspan="3" style="text-align:right">Total</td><td>'+total+' Hours</td></tr>');
+    parts.push('</tbody></table></div>');
+  });
+
+  parts.push('<br><p style="text-align:right;font-size:9pt">Signature of HOD: _________________________</p>');
+  parts.push('</body></html>');
+
+  const blob=new Blob([parts.join('')],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='Workload_'+HDR.dept.replace(/\s+/g,'_')+'.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  showSaveStatus('✅ Workload downloaded! Open in Chrome → Ctrl+P → Save as PDF','#276749');
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+// ── AUTO RESTORE on app open ──────────────────
+(function(){
+  function restoreAndBuild(data){
+    try{
+      if(data && data.STAFF_IDS){
+        if(data.HDR){ Object.assign(HDR,data.HDR); }
+        STAFF_IDS.length=0; data.STAFF_IDS.forEach(function(s){STAFF_IDS.push(s);});
+        Object.keys(SNAME).forEach(function(k){delete SNAME[k];}); Object.assign(SNAME,data.SNAME||{});
+        Object.keys(SFULL).forEach(function(k){delete SFULL[k];}); Object.assign(SFULL,data.SFULL||{});
+        Object.keys(TAM_ENG).forEach(function(k){delete TAM_ENG[k];}); Object.assign(TAM_ENG,data.TAM_ENG||{});
+        Object.keys(defaultWorkload).forEach(function(k){delete defaultWorkload[k];});
+        if(data.workload) Object.assign(defaultWorkload,data.workload);
+        // Update headings
+        ['hdr-college','hdr-dept','tt-college-lbl','tt-dept-lbl'].forEach(function(id,i){
+          var el=document.getElementById(id);
+          if(el) el.textContent=[HDR.college,HDR.dept,HDR.college,HDR.dept][i]||'';
+        });
+        document.getElementById('tt-title-lbl').textContent=HDR.title||'';
+        var ec=document.getElementById('edit-college');
+        var ed=document.getElementById('edit-dept');
+        var et=document.getElementById('edit-tttitle');
+        if(ec) ec.value=HDR.college||'';
+        if(ed) ed.value=HDR.dept||'';
+        if(et) et.value=HDR.title||'';
+      }
+    }catch(e){ console.log('Restore error:',e); }
+    buildNameEditor();
+    buildInputUI();
+    buildFixedEditor();
+    buildIndivSelect();
+  }
+
+  // Try to get saved data
+  var saved = null;
+  try{ saved = localStorage.getItem('timetable_autosave'); }catch(e){}
+  if(!saved){ try{ saved = sessionStorage.getItem('timetable_autosave'); }catch(e){} }
+
+  if(saved){
+    try{
+      var data = JSON.parse(saved);
+      restoreAndBuild(data);
+      // Show restore message after UI is built
+      setTimeout(function(){
+        showSaveStatus('✅ Previous workload restored!','#276749');
+      },500);
+    }catch(e){
+      restoreAndBuild(null);
+    }
+  } else {
+    restoreAndBuild(null);
+  }
+})();
+</script>
+</body>
+</html>
