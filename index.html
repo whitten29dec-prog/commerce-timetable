@@ -1165,13 +1165,28 @@ function showSaveStatus(msg,color){
   setTimeout(()=>el.style.display='none',5000);
 }
 
-// ── AUTO SAVE (silent, on generate) ───────
+// ── AUTO SAVE ─────────────────────────────
 function autoSave(){
   try{
-    const data=collectCurrentData();
-    // Store in sessionStorage (works in all browsers including local files)
-    sessionStorage.setItem('timetable_autosave',JSON.stringify(data));
-  }catch(e){/* silent */}
+    var data = collectCurrentData();
+    var json = JSON.stringify(data);
+    // localStorage persists after app close — best option
+    try{ localStorage.setItem('timetable_autosave', json); return; }catch(e1){}
+    // Fallback: sessionStorage (clears on tab close but better than nothing)
+    try{ sessionStorage.setItem('timetable_autosave', json); }catch(e2){}
+  }catch(e){}
+}
+
+function getSavedData(){
+  try{
+    var ls = localStorage.getItem('timetable_autosave');
+    if(ls) return ls;
+  }catch(e){}
+  try{
+    var ss = sessionStorage.getItem('timetable_autosave');
+    if(ss) return ss;
+  }catch(e){}
+  return null;
 }
 
 // ══════════════════════════════════════════
@@ -1448,14 +1463,9 @@ function showSaveStatus(msg,color){
   setTimeout(()=>el.style.display='none',5000);
 }
 
-// ── AUTO SAVE (silent, on generate) ───────
-function autoSave(){
-  try{
-    const data=collectCurrentData();
-    // Store in sessionStorage (works in all browsers including local files)
-    sessionStorage.setItem('timetable_autosave',JSON.stringify(data));
-  }catch(e){/* silent */}
-}
+// ── AUTO SAVE ─────────────────────────────
+// autoSave + getSavedData defined above
+
 
 // ══════════════════════════════════════════
 // DOWNLOAD WORKLOAD
@@ -1519,44 +1529,55 @@ function downloadWorkload(){
 // ══════════════════════════════════════════
 // ── AUTO RESTORE on app open ──────────────────
 (function(){
-  try{
-    const saved = getSavedData();
-    if(!saved) { buildNameEditor(); buildInputUI(); buildFixedEditor(); buildIndivSelect(); return; }
-    const data = JSON.parse(saved);
-    if(!data || !data.STAFF_IDS) { buildNameEditor(); buildInputUI(); buildFixedEditor(); buildIndivSelect(); return; }
-
-    // Silently restore all saved data
-    if(data.HDR) Object.assign(HDR, data.HDR);
-    if(data.STAFF_IDS){ STAFF_IDS.length=0; data.STAFF_IDS.forEach(s=>STAFF_IDS.push(s)); }
-    if(data.SNAME){ Object.keys(SNAME).forEach(k=>delete SNAME[k]); Object.assign(SNAME, data.SNAME); }
-    if(data.SFULL){ Object.keys(SFULL).forEach(k=>delete SFULL[k]); Object.assign(SFULL, data.SFULL); }
-    if(data.TAM_ENG){ Object.keys(TAM_ENG).forEach(k=>delete TAM_ENG[k]); Object.assign(TAM_ENG, data.TAM_ENG); }
-    if(data.workload){
-      Object.keys(defaultWorkload).forEach(k=>delete defaultWorkload[k]);
-      Object.assign(defaultWorkload, data.workload);
-    }
-
-    // Update headings display
-    document.getElementById('hdr-college').textContent    = HDR.college||'';
-    document.getElementById('hdr-dept').textContent       = HDR.dept||'';
-    document.getElementById('tt-college-lbl').textContent = HDR.college||'';
-    document.getElementById('tt-dept-lbl').textContent    = HDR.dept||'';
-    document.getElementById('tt-title-lbl').textContent   = HDR.title||'';
-    const ec=document.getElementById('edit-college');
-    const ed=document.getElementById('edit-dept');
-    const et=document.getElementById('edit-tttitle');
-    if(ec) ec.value = HDR.college||'';
-    if(ed) ed.value = HDR.dept||'';
-    if(et) et.value = HDR.title||'';
-
-    showSaveStatus('✅ Previous workload restored automatically!','#276749');
-  }catch(e){
-    // If restore fails, just use defaults
+  function restoreAndBuild(data){
+    try{
+      if(data && data.STAFF_IDS){
+        if(data.HDR){ Object.assign(HDR,data.HDR); }
+        STAFF_IDS.length=0; data.STAFF_IDS.forEach(function(s){STAFF_IDS.push(s);});
+        Object.keys(SNAME).forEach(function(k){delete SNAME[k];}); Object.assign(SNAME,data.SNAME||{});
+        Object.keys(SFULL).forEach(function(k){delete SFULL[k];}); Object.assign(SFULL,data.SFULL||{});
+        Object.keys(TAM_ENG).forEach(function(k){delete TAM_ENG[k];}); Object.assign(TAM_ENG,data.TAM_ENG||{});
+        Object.keys(defaultWorkload).forEach(function(k){delete defaultWorkload[k];});
+        if(data.workload) Object.assign(defaultWorkload,data.workload);
+        // Update headings
+        ['hdr-college','hdr-dept','tt-college-lbl','tt-dept-lbl'].forEach(function(id,i){
+          var el=document.getElementById(id);
+          if(el) el.textContent=[HDR.college,HDR.dept,HDR.college,HDR.dept][i]||'';
+        });
+        document.getElementById('tt-title-lbl').textContent=HDR.title||'';
+        var ec=document.getElementById('edit-college');
+        var ed=document.getElementById('edit-dept');
+        var et=document.getElementById('edit-tttitle');
+        if(ec) ec.value=HDR.college||'';
+        if(ed) ed.value=HDR.dept||'';
+        if(et) et.value=HDR.title||'';
+      }
+    }catch(e){ console.log('Restore error:',e); }
+    buildNameEditor();
+    buildInputUI();
+    buildFixedEditor();
+    buildIndivSelect();
   }
-  buildNameEditor();
-  buildInputUI();
-  buildFixedEditor();
-  buildIndivSelect();
+
+  // Try to get saved data
+  var saved = null;
+  try{ saved = localStorage.getItem('timetable_autosave'); }catch(e){}
+  if(!saved){ try{ saved = sessionStorage.getItem('timetable_autosave'); }catch(e){} }
+
+  if(saved){
+    try{
+      var data = JSON.parse(saved);
+      restoreAndBuild(data);
+      // Show restore message after UI is built
+      setTimeout(function(){
+        showSaveStatus('✅ Previous workload restored!','#276749');
+      },500);
+    }catch(e){
+      restoreAndBuild(null);
+    }
+  } else {
+    restoreAndBuild(null);
+  }
 })();
 </script>
 </body>
