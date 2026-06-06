@@ -728,18 +728,205 @@ function attempt(slots){
 }
 
 function generateTimetable(){
-  autoSave(); // Auto save before generating
+  autoSave();
   const slots=readSlots();
   let best=null;
-  for(let i=0;i<2000;i++){
+
+  // Phase 1: Run 5000 attempts with all rules
+  for(let i=0;i<5000;i++){
     const res=attempt(slots);
     if(!best||res.unplaced.length<best.unplaced.length) best=res;
     if(best.unplaced.length===0) break;
   }
+
+  // Phase 2: Fill pass — try to place remaining unplaced slots
+  // with progressively relaxed rules (but never relax staff clash)
+  if(best.unplaced.length>0){
+    best = fillPass(best.g, best.unplaced, slots);
+  }
+
+  // Phase 3: Smart swap — if still unplaced, try swapping placed slots
+  if(best.unplaced.length>0){
+    best = smartSwap(best.g, best.unplaced);
+  }
+
   lastGrid=best.g;
   render(best.g,best.unplaced);
   buildIndivSelect();
   switchTab(2);
+}
+
+// ── FILL PASS ─────────────────────────────────────────────────────────────
+// After main scheduling, try to place remaining unplaced slots
+// by gradually relaxing non-critical rules one at a time
+function fillPass(g, unplaced, allSlots){
+  if(unplaced.length===0) return {g,unplaced};
+
+  const remaining = [...unplaced];
+  const stillUnplaced = [];
+
+  remaining.forEach(function(item){
+    const staff = item.staff;
+    const cls   = item.cls;
+
+    // Count how many times this staff appears on each day
+    const staffDayCount = {};
+    DAYS.forEach(function(d){
+      staffDayCount[d] = PERIODS.reduce(function(cnt,p){
+        return cnt + (CLASSES.some(function(c){ return g[d][p][c]===staff; }) ? 1 : 0);
+      }, 0);
+    });
+
+    // Try to find ANY empty slot for this staff+class
+    // Relax: zone rule, accounts rule, balance rule — but keep max4/day and no staff clash
+    let placed = false;
+
+    // Try 1: max 3/day + no consecutive + no staff clash
+    for(let di=0; di<DAYS.length && !placed; di++){
+      const day = DAYS[di];
+      if(staffDayCount[day] >= 3) continue;
+      for(let pi=0; pi<PERIODS.length && !placed; pi++){
+        const per = PERIODS[pi];
+        if(g[day][per][cls]) continue;
+        if(staffBusyAt(g,day,per,staff)) continue;
+        if(isConsecutive(g,day,per,cls,staff)) continue;
+        g[day][per][cls] = staff;
+        placed = true;
+      }
+    }
+
+    // Try 2: max 4/day + no consecutive + no staff clash
+    if(!placed){
+      for(let di=0; di<DAYS.length && !placed; di++){
+        const day = DAYS[di];
+        if(staffDayCount[day] >= 4) continue;
+        for(let pi=0; pi<PERIODS.length && !placed; pi++){
+          const per = PERIODS[pi];
+          if(g[day][per][cls]) continue;
+          if(staffBusyAt(g,day,per,staff)) continue;
+          if(isConsecutive(g,day,per,cls,staff)) continue;
+          g[day][per][cls] = staff;
+          placed = true;
+        }
+      }
+    }
+
+    // Try 3: max 4/day + allow consecutive + no staff clash
+    if(!placed){
+      for(let di=0; di<DAYS.length && !placed; di++){
+        const day = DAYS[di];
+        if(staffDayCount[day] >= 4) continue;
+        for(let pi=0; pi<PERIODS.length && !placed; pi++){
+          const per = PERIODS[pi];
+          if(g[day][per][cls]) continue;
+          if(staffBusyAt(g,day,per,staff)) continue;
+          g[day][per][cls] = staff;
+          placed = true;
+        }
+      }
+    }
+
+    // Try 4: max 5/day + allow consecutive + no staff clash (last resort)
+    if(!placed){
+      for(let di=0; di<DAYS.length && !placed; di++){
+        const day = DAYS[di];
+        if(staffDayCount[day] >= 5) continue;
+        for(let pi=0; pi<PERIODS.length && !placed; pi++){
+          const per = PERIODS[pi];
+          if(g[day][per][cls]) continue;
+          if(staffBusyAt(g,day,per,staff)) continue;
+          g[day][per][cls] = staff;
+          placed = true;
+        }
+      }
+    }
+
+    if(!placed) stillUnplaced.push(item);
+  });
+
+  return {g, unplaced: stillUnplaced};
+}
+
+// ── SMART SWAP ────────────────────────────────────────────────────────────
+// If a slot is still unplaced, find a placed slot that can be moved
+// to make room for the unplaced slot
+function smartSwap(g, unplaced){
+  if(unplaced.length===0) return {g, unplaced};
+
+  const remaining = [...unplaced];
+  const stillUnplaced = [];
+
+  remaining.forEach(function(item){
+    const staff = item.staff;
+    const cls   = item.cls;
+    let placed  = false;
+
+    // Find empty slots for this class
+    for(let di=0; di<DAYS.length && !placed; di++){
+      const day = DAYS[di];
+      for(let pi=0; pi<PERIODS.length && !placed; pi++){
+        const per = PERIODS[pi];
+        if(g[day][per][cls]) continue; // not empty
+        if(staffBusyAt(g,day,per,staff)) continue; // staff busy this period
+
+        // Found empty slot for this class but staff busy in another class
+        // Check if we can directly place here
+        g[day][per][cls] = staff;
+        placed = true;
+      }
+    }
+
+    // Try swapping: find a placed slot of this staff in another class
+    // and move it to make room
+    if(!placed){
+      DAYS.forEach(function(day){
+        if(placed) return;
+        PERIODS.forEach(function(per){
+          if(placed) return;
+          if(g[day][per][cls]) return; // not empty for target class
+
+          // Check who is using this staff in this period (another class)
+          var occupiedClass = null;
+          CLASSES.forEach(function(c){
+            if(g[day][per][c]===staff) occupiedClass=c;
+          });
+          if(!occupiedClass) return; // staff not here at all
+
+          // Try to find another slot for occupiedClass+staff
+          var canMove = false;
+          var moveDay='', movePer=0;
+          DAYS.forEach(function(d2){
+            if(canMove) return;
+            PERIODS.forEach(function(p2){
+              if(canMove) return;
+              if(d2===day && p2===per) return;
+              if(g[d2][p2][occupiedClass]) return; // not empty
+              if(staffBusyAt(g,d2,p2,staff)) return; // staff busy
+              // Check day count
+              var dc=PERIODS.reduce(function(cnt,p){
+                return cnt+(CLASSES.some(function(c){return g[d2][p][c]===staff;})?1:0);
+              },0);
+              if(dc>=4) return;
+              canMove=true; moveDay=d2; movePer=p2;
+            });
+          });
+
+          if(canMove){
+            // Move occupiedClass slot
+            g[day][per][occupiedClass] = '';
+            g[moveDay][movePer][occupiedClass] = staff;
+            // Now place our unplaced slot
+            g[day][per][cls] = staff;
+            placed = true;
+          }
+        });
+      });
+    }
+
+    if(!placed) stillUnplaced.push(item);
+  });
+
+  return {g, unplaced: stillUnplaced};
 }
 
 // ══════════════════════════════════════════
